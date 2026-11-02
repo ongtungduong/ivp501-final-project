@@ -1,0 +1,22 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ipynb_checkpoints/
+.gradio/
+
+# Ket qua cham diem, co thong tin hoc sinh
+scores.csv
+
+# MATLAB
+*.asv
+*.autosave
+
+# He dieu hanh va editor
+.DS_Store
+.vscode/
+.idea/
+
+# Du lieu lam viec cua cong cu
+.superpowers/

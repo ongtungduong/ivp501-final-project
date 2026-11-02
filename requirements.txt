@@ -1,0 +1,9 @@
+opencv-python-headless
+numpy
+pillow
+gradio==6.31.0
+pytest
+nbformat
+nbconvert
+ipykernel
+matplotlib
