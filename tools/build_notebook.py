@@ -17,10 +17,11 @@ Phiếu có 4 ô vuông đen ở góc để định vị và một thanh đen ch
     ("src/omr_locate.py", """## Bước 3. Tìm phiếu và nắn ảnh
 1. **Ảnh xám** và **lọc Gauss** để giảm nhiễu.
 2. **Phân ngưỡng thích nghi**: mỗi điểm được so với vùng lân cận, nên ánh sáng không đều vẫn tách được nét đen.
-3. **Tìm contour**: giữ các hình 4 đỉnh gần vuông và đặc, đó là ứng viên ô định vị. Bộ 4 ô đúng phải xếp đúng tỉ lệ phiếu và khớp với thanh định hướng, nhờ vậy loại được vật đen vuông ngoài phiếu.
+3. **Tìm contour**: giữ các hình 4 đỉnh gần vuông, đặc và tối hơn hẳn giấy bao quanh, đó là ứng viên ô định vị. Bộ 4 ô đúng phải xếp đúng tỉ lệ phiếu và khớp với thanh định hướng, nhờ vậy loại được vật đen vuông ngoài phiếu.
 4. **Biến đổi phối cảnh**: từ 4 cặp điểm tính ma trận 3×3, đưa ảnh nghiêng về khung chuẩn."""),
     ("src/omr_read.py", """## Bước 4. Đọc ô tô
-- **Khử ánh sáng**: phép đóng hình thái ước lượng nền giấy, chia ảnh cho nền để giấy gần 1 và mực gần 0.
+- **Bù giấy cong**: tìm viền các ô in, ghép với vị trí chuẩn, ước lượng độ lệch mềm (đa thức rồi nội suy Gauss cục bộ) và nắn lại ảnh.
+- **Khử ánh sáng**: phép đóng hình thái ước lượng nền giấy, chia ảnh cho nền và cho mức sáng giấy của chính phiếu để giấy gần 1 và mực gần 0.
 - **Căn lại tâm ô**: khớp mẫu vòng tròn với viền in để bù sai số còn lại sau khi nắn.
 - **Tỉ lệ điểm đen** trong lõi mỗi ô (bỏ viền in): dưới 0.25 là trống, trên 0.75 là đã tô, ở giữa là không chắc. Ô tô đủ diện tích nhưng quá nhạt cũng là không chắc.
 - **"Trống" phải có bằng chứng**: phần trong viền ô và giấy quanh ô đều sạch. Nếu không, ô được coi là không chắc, nhờ vậy nét tô nhạt, vết tẩy và bóng đổ không bị chấm nhầm.
@@ -61,11 +62,12 @@ cv2.imwrite(str(anh_mau), photograph(phieu, angle=6, perspective=.03, gradient=.
 ket_qua = grade_batch([str(anh_mau)], load_answer_key(str(mau / "sample_answer_key.csv")))[0]
 print(ket_qua.status, ket_qua.student_id, ket_qua.score, ket_qua.notes)
 
-fig, axes = plt.subplots(2, 3, figsize=(14, 10))
+fig, axes = plt.subplots(2, 4, figsize=(18, 10))
+for ax in axes.flat:
+    ax.axis("off")
 for ax, (ten, anh) in zip(axes.flat, ket_qua.steps.items()):
     ax.imshow(anh[..., ::-1] if anh.ndim == 3 else anh, cmap="gray")
     ax.set_title(ten)
-    ax.axis("off")
 plt.show()
 
 plt.figure(figsize=(8, 11))

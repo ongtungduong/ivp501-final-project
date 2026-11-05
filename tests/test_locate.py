@@ -7,12 +7,12 @@ from omr_layout import MARKER_CENTERS, ORIENTATION_BAR
 from omr_locate import (SheetUnreadable, find_markers, fix_orientation, load_image,
                         preprocess, warp)
 from omr_sheet import render_sheet
-from synth import photograph
+from synth import add_dark_keys, move_bar, photograph
 
 
 def locate(bgr):
     gray, _, binary = preprocess(bgr)
-    return fix_orientation(warp(gray, find_markers(binary)))
+    return fix_orientation(warp(gray, find_markers(binary, gray)))
 
 
 def markers_dark(w):
@@ -59,6 +59,19 @@ def test_distractor_black_square_is_not_a_marker():
 @pytest.mark.parametrize("seed", range(8))
 def test_strong_perspective_many_seeds(seed):
     assert markers_dark(locate(photograph(render_sheet(), perspective=.08, seed=seed)))
+
+
+def test_keyboard_keys_bigger_than_markers_are_ignored():
+    small = cv2.resize(photograph(render_sheet(), angle=180), None, fx=.4, fy=.4,
+                       interpolation=cv2.INTER_AREA)  # co anh dien thoai: o dinh vi nho hon phim
+    assert markers_dark(locate(add_dark_keys(small)))
+
+
+@pytest.mark.parametrize("angle", [0, 180])
+def test_orientation_bar_shifted_by_bent_paper(angle):
+    w = locate(photograph(move_bar(render_sheet()), angle=angle))
+    x, y, bw, bh = ORIENTATION_BAR
+    assert markers_dark(w) and w[y + bh // 2 - 22, x + bw // 2] < 90
 
 
 def test_dark_background_never_returns_wrong_warp():

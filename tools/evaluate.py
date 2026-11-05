@@ -26,13 +26,15 @@ CASES = {
     "Phối cảnh": lambda r: dict(perspective=r.uniform(.02, .07)),
     "Tối": lambda r: dict(brightness=r.uniform(.35, .6)),
     "Ánh sáng không đều": lambda r: dict(gradient=r.uniform(.3, .6)),
+    "Mờ": lambda r: dict(blur=r.choice([9, 15, 21, 25])),
     "Nét tô nhạt": lambda r: {},
+    "Nét tô nhạt, ảnh mờ": lambda r: dict(blur=r.choice([9, 15, 21, 25])),
     "Vết tẩy sạch": lambda r: {},
     "Vết tẩy dở": lambda r: {},
 }
 
 
-MUST_REVIEW = ("Nét tô nhạt", "Vết tẩy dở")  # co diem la vi pham quy tac
+MUST_REVIEW = ("Nét tô nhạt", "Nét tô nhạt, ảnh mờ", "Vết tẩy dở")  # co diem la vi pham quy tac
 
 
 def run_one(args):
@@ -43,10 +45,10 @@ def run_one(args):
     answers = {q: (key[q] if r.random() < .7 else r.choice(CHOICES))
                for q in key if r.random() > .05}
     faint_q = r.randint(1, 40)
-    if name == "Nét tô nhạt":
+    if name.startswith("Nét tô nhạt"):
         answers.pop(faint_q, None)  # net nhat nam o cau chua to, dung tinh huong can xem lai
     img = fill_sheet(BLANK, student, answers)
-    if name == "Nét tô nhạt":
+    if name.startswith("Nét tô nhạt"):
         fill_bubble(img, question_bubble(faint_q, r.choice(CHOICES)),
                     darkness=r.randint(170, 225), coverage=r.uniform(.3, 1))
     if name in ("Vết tẩy sạch", "Vết tẩy dở"):

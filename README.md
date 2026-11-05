@@ -67,11 +67,12 @@ Bảng điểm được in ra màn hình và ghi vào `scores.csv` trong thư m�
 
 1. **Ảnh xám và lọc Gauss:** giảm nhiễu.
 2. **Phân ngưỡng thích nghi:** so mỗi điểm với vùng lân cận để tách nét đen khi ánh sáng không đều.
-3. **Tìm 4 ô định vị:** chọn các vùng gần vuông, đặc, xếp đúng tỉ lệ phiếu và khớp với thanh đen ở mép trên.
+3. **Tìm 4 ô định vị:** chọn các vùng gần vuông, đặc, tối hơn hẳn giấy bao quanh (loại phím bàn phím, vật tối trên nền tối), xếp đúng tỉ lệ phiếu và khớp với thanh đen ở mép trên.
 4. **Biến đổi phối cảnh:** nắn ảnh về khung chuẩn 1654×2339 px. Thanh đen cho biết phiếu có bị ngược đầu không.
-5. **Khử ánh sáng:** dùng phép đóng hình thái để ước lượng nền giấy, rồi chia ảnh cho nền.
-6. **Đọc ô tô:** căn lại tâm từng ô theo viền in, rồi đo tỉ lệ điểm đen trong lõi ô.
-7. **Chấm điểm:** điểm = số câu đúng / N × 10, làm tròn 2 chữ số thập phân.
+5. **Bù giấy cong:** tìm viền các ô in trên phiếu đã nắn, ghép với vị trí chuẩn, ước lượng độ lệch mềm (đa thức rồi nội suy cục bộ) và nắn lại. Nhờ vậy phiếu cầm tay hơi cong vẫn đọc được.
+6. **Khử ánh sáng:** dùng phép đóng hình thái để ước lượng nền giấy, rồi chia ảnh cho nền và cho mức sáng giấy của chính phiếu.
+7. **Đọc ô tô:** căn lại tâm từng ô theo viền in, rồi đo tỉ lệ điểm đen trong lõi ô.
+8. **Chấm điểm:** điểm = số câu đúng / N × 10, làm tròn 2 chữ số thập phân.
 
 ## Quy tắc chấm
 

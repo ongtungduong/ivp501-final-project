@@ -4,7 +4,7 @@ import numpy as np
 from omr_layout import question_bubble
 from omr_read import classify_ratio, read_sheet
 from omr_sheet import render_sheet
-from synth import add_glare, fill_bubble, fill_sheet, photograph, shift_content
+from synth import add_glare, bend, fill_bubble, fill_sheet, photograph, shift_content
 import pytest
 
 
@@ -144,12 +144,39 @@ def test_incomplete_id_is_reported(read):
 
 
 def test_blur_and_glare_reported(read):
-    assert read(render_sheet(), blur=31).problems
+    assert read(render_sheet(), blur=51).problems
     assert read(add_glare(render_sheet())).problems
 
 
-def test_misaligned_grid_reported(read):
-    assert read(shift_content(render_sheet(), dx=25)).problems
+def test_moderately_blurred_photo_reads_correctly(read):
+    answers = {q: "ABCD"[q % 4] for q in range(1, 41)}
+    r = read(fill_sheet(render_sheet(), "240517", answers), blur=25)
+    assert r.student_id == "240517" and not r.problems and not r.uncertain
+    assert r.marks == {q: [answers[q]] for q in answers}
+
+
+@pytest.mark.parametrize("darkness,coverage", [(220, .4), (200, 1.0)])
+def test_faint_mark_on_blurred_photo_is_uncertain(read, darkness, coverage):
+    img = fill_sheet(render_sheet(), "123456", {})
+    fill_bubble(img, question_bubble(5, "B"), darkness=darkness, coverage=coverage)
+    r = read(img, blur=25)
+    assert r.problems or 5 in r.uncertain
+
+
+@pytest.mark.parametrize("dx", [25, 45])
+def test_misaligned_grid_never_gives_wrong_reading(read, dx):
+    answers = {q: "ABCD"[q % 4] for q in range(1, 41)}
+    r = read(shift_content(fill_sheet(render_sheet(), "240517", answers), dx=dx))
+    assert r.problems or r.uncertain or r.id_problems or (
+        r.student_id == "240517" and r.marks == {q: [answers[q]] for q in answers})
+
+
+@pytest.mark.parametrize("kw", [dict(), dict(dx=-25, dy=30, center=(1400, 400))])
+def test_bent_paper_reads_correctly(read, kw):
+    answers = {q: "ABCD"[q % 4] for q in range(1, 41)}
+    r = read(bend(fill_sheet(render_sheet(), "240517", answers), **kw), angle=3)
+    assert r.student_id == "240517" and not r.problems and not r.uncertain
+    assert r.marks == {q: [answers[q]] for q in answers}
 
 
 def test_dim_uneven_light_reads_correctly(read):

@@ -9,6 +9,8 @@ from omr_layout import MARKER_CENTERS, ORIENTATION_BAR, PAGE_H, PAGE_W
 
 MAX_SIDE = 3000
 MAX_CANDIDATES = 12
+MAX_INK_RATIO = 0.3  # o dinh vi la muc den in tren giay trang: trong toi hon han vien quanh
+BAR_SLACK = 40  # px: giay cong lam thanh dinh huong lech khoi vi tri chuan sau khi nan
 _MARKER_RATIO = (MARKER_CENTERS[2][1] - MARKER_CENTERS[1][1]) / (MARKER_CENTERS[1][0] - MARKER_CENTERS[0][0])
 
 
@@ -40,8 +42,23 @@ def preprocess(bgr):
     return gray, blurred, binary
 
 
-def _candidates(binary):
-    """Contour gan vuong, dac, lon: ung vien o dinh vi. Tra ve [(dien_tich, tam)]."""
+def _ink_on_paper(gray, contour, area):
+    """Trong contour toi hon han dai giay bao quanh; loai phim ban phim, vat toi tren nen toi.
+
+    Chi xet khung bao cua contour noi rong them nua cua so gian no, khong tao mat na ca anh.
+    """
+    k = max(int(np.sqrt(area) * 0.25), 3) | 1
+    x, y, w, h = cv2.boundingRect(contour)
+    x0, y0 = max(x - k // 2, 0), max(y - k // 2, 0)
+    roi = gray[y0:y + h + k // 2, x0:x + w + k // 2]
+    mask = np.zeros(roi.shape, np.uint8)
+    cv2.drawContours(mask, [contour], -1, 255, -1, offset=(-x0, -y0))
+    ring = cv2.dilate(mask, np.ones((k, k), np.uint8)) - mask
+    return np.median(roi[mask > 0]) < MAX_INK_RATIO * np.median(roi[ring > 0])
+
+
+def _candidates(binary, gray):
+    """Contour gan vuong, dac, lon, la muc tren giay: ung vien o dinh vi. Tra ve [(dien_tich, tam)]."""
     contours, _ = cv2.findContours(binary, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
     min_area = (max(binary.shape) / 200) ** 2
     found = []
@@ -55,6 +72,8 @@ def _candidates(binary):
         (cx, cy), (w, h), _ = cv2.minAreaRect(c)
         # phoi canh manh lam o vuong thanh hinh binh hanh, nen do dac tinh theo bao loi
         if min(w, h) == 0 or not 0.5 < w / h < 2.0 or area / cv2.contourArea(cv2.convexHull(c)) < 0.9:
+            continue
+        if not _ink_on_paper(gray, c, area):
             continue
         # vien trong va vien ngoai cua cung mot o cho hai contour trung tam: chi giu mot
         if all(np.hypot(cx - fx, cy - fy) > 10 for _, (fx, fy) in found):
@@ -85,12 +104,35 @@ def _rect_error(p):
     return ratio_err if ratio_err < 0.35 else None
 
 
+_BAR_X0 = ORIENTATION_BAR[0] + 20  # vung chua thanh dinh huong trong khung chuan, cho lech +-BAR_SLACK
+_BAR_Y0 = ORIENTATION_BAR[1] - BAR_SLACK
+_BAR_SIZE = (ORIENTATION_BAR[2] - 40, ORIENTATION_BAR[3] + 2 * BAR_SLACK)  # (rong, cao)
+# toa do khung chuan cua vung o mep tren va (sau khi xoay 180 do) o mep duoi
+_BAR_TOP = np.float64([[1, 0, _BAR_X0], [0, 1, _BAR_Y0], [0, 0, 1]])
+_BAR_BOTTOM = np.float64([[-1, 0, PAGE_W - 1 - _BAR_X0], [0, -1, PAGE_H - 1 - _BAR_Y0], [0, 0, 1]])
+
+
+def _bar_level(band, darkest):
+    """Muc sang cua dai cao bang thanh dinh huong, toi nhat (hoac sang nhat) trong vung."""
+    h = ORIENTATION_BAR[3] - 8
+    bands = np.convolve(band.mean(axis=1), np.ones(h) / h, mode="valid")
+    return bands.max() if darkest else bands.min()
+
+
+def _bar_band(img):
+    w, h = _BAR_SIZE
+    return img[_BAR_Y0:_BAR_Y0 + h, _BAR_X0:_BAR_X0 + w]
+
+
 def _bar_present(binary, corners):
-    """Nan thu anh nhi phan: dung bo 4 o thi thanh dinh huong phai nam o mep tren hoac duoi."""
-    w = warp(binary, corners)
-    x, y, bw, bh = ORIENTATION_BAR
-    top = w[y + 4:y + bh - 4, x + 20:x + bw - 20].mean()
-    bottom = cv2.rotate(w, cv2.ROTATE_180)[y + 4:y + bh - 4, x + 20:x + bw - 20].mean()
+    """Dung bo 4 o thi thanh dinh huong phai nam o mep tren hoac duoi.
+
+    Chi nan vung quanh thanh dinh huong (khong nan ca phieu) vi buoc nay chay cho moi bo 4 o.
+    """
+    m = cv2.getPerspectiveTransform(np.float32(MARKER_CENTERS), np.float32(corners)).astype(np.float64)
+    top, bottom = (_bar_level(cv2.warpPerspective(binary, m @ place, _BAR_SIZE,
+                                                  flags=cv2.INTER_LINEAR | cv2.WARP_INVERSE_MAP), True)
+                   for place in (_BAR_TOP, _BAR_BOTTOM))
     return max(top, bottom) > 0.7 * 255 and min(top, bottom) < 0.3 * 255
 
 
@@ -99,10 +141,10 @@ def _outside(sheet, other):
     return all(cv2.pointPolygonTest(sheet, (float(x), float(y)), False) < 0 for x, y in other)
 
 
-def find_markers(binary):
+def find_markers(binary, gray):
     """Tim 4 o dinh vi: to hop phai dung ti le phieu va khop thanh dinh huong."""
     ranked = []
-    for combo in combinations(_candidates(binary), 4):
+    for combo in combinations(_candidates(binary, gray), 4):
         areas = [c[0] for c in combo]
         if max(areas) / min(areas) > 2.0:
             continue
@@ -128,10 +170,9 @@ def warp(gray, corners):
 
 def fix_orientation(warped):
     """Dua vao thanh den chi co o mep tren de xac dinh chieu phieu, xoay 180 do neu nguoc."""
-    x, y, w, h = ORIENTATION_BAR
-    top = warped[y:y + h, x:x + w].mean()
+    top = _bar_level(_bar_band(warped), False)
     flipped = cv2.rotate(warped, cv2.ROTATE_180)
-    bottom = flipped[y:y + h, x:x + w].mean()
+    bottom = _bar_level(_bar_band(flipped), False)
     if min(top, bottom) > 0.6 * max(top, bottom):
         raise SheetUnreadable("Không xác định được chiều phiếu")
     return warped if top < bottom else flipped

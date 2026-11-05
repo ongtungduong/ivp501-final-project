@@ -4,7 +4,7 @@ import math
 import cv2
 import numpy as np
 
-from omr_layout import BUBBLE_RADIUS, PAGE_H, PAGE_W, id_bubble, question_bubble
+from omr_layout import BUBBLE_RADIUS, ORIENTATION_BAR, PAGE_H, PAGE_W, id_bubble, question_bubble
 
 
 def fill_bubble(img, center, darkness=40, coverage=1.0):
@@ -59,6 +59,34 @@ def add_glare(img):
     out = img.copy()
     x, y = question_bubble(11, "A")
     cv2.circle(out, (x + 100, y + 300), 320, 255, -1)
+    return out
+
+
+def bend(img, dx=30, dy=40, center=(250, 1000), sigma=300):
+    """Lam cong giay quanh mot diem (nhu cho tay cam): noi dung lech toi (dx, dy), o goc gan nhu khong lech."""
+    ys, xs = np.mgrid[0:img.shape[0], 0:img.shape[1]].astype(np.float32)
+    w = np.exp(-((xs - center[0]) ** 2 + (ys - center[1]) ** 2) / (2 * sigma ** 2))
+    return cv2.remap(img, xs - dx * w, ys - dy * w, cv2.INTER_LINEAR, borderValue=255)
+
+
+def move_bar(img, dy=-22):
+    """Dich thanh dinh huong theo chieu doc, mo phong giay cong o mep tren."""
+    out = img.copy()
+    x, y, w, h = ORIENTATION_BAR
+    out[y:y + h, x:x + w] = 255
+    out[y + dy:y + dy + h, x:x + w] = 0
+    return out
+
+
+def add_dark_keys(bgr, count=14, size=45, key=60, base=140):
+    """Phu nen kieu ban phim: nhieu phim xam toi, lon hon o dinh vi, tren nen chi sang hon mot chut."""
+    out = bgr.copy()
+    out[:, :120] = base
+    out[:120, :] = base
+    for i in range(count):
+        x = 10 + (i % 7) * 110
+        out[20:20 + size, 120 + x:120 + x + size] = key
+        out[200 + (i // 7) * 110:200 + (i // 7) * 110 + size, 20:20 + size] = key
     return out
 
 
