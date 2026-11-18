@@ -1,4 +1,8 @@
-"""Doc dap an, cham diem, ve anh danh dau va xuat CSV."""
+"""Doc dap an, cham diem, ve anh danh dau va xuat CSV.
+
+Day la tang QUYET DINH cuoi: omr_read chi bao "doc duoc gi, chac hay khong"; file nay quyet dinh
+cho diem hay tra "Can xem lai". Quy tac xuyen suot: doc khong chac -> khong cho diem (slide 3 va 9).
+"""
 import csv
 import os
 from collections import Counter
@@ -83,23 +87,32 @@ def _annotate(warped, marks, key):
 
 def grade_reading(filename, reading, key):
     """Bai doc khong chac chan thi "Can xem lai", khong bao gio cho diem."""
+    # Chi tinh cac cau uncertain nam trong dap an (de thi 20 cau thi cau 21-40 khong lien quan).
     result = SheetResult(filename, DONE, reading.student_id, steps=reading.steps)
     uncertain = [q for q in reading.uncertain if q in key]
     notes = list(reading.problems) + list(reading.id_problems)
     if uncertain:
         notes.append("Câu không đọc chắc chắn: " + ", ".join(map(str, uncertain)))
+    # Ve anh danh dau ca khi "Can xem lai", de giao vien nhin thay cho nghi ngo.
     if reading.warped is not None:
         result.annotated = _annotate(reading.warped, reading.marks, key)
+    # Co BAT KY ghi chu loi nao (anh mo, ma hoc sinh, cau khong chac) -> dung, khong cho diem.
+    # Day la nhanh "an toan truoc": thieu mot bai tot de giao vien xem, con hon cham sai mot bai.
     if notes:
         result.status, result.notes = REVIEW, notes
         return result
+    # Toi day moi doc chac chan. Cau bo trong / to nhieu o la quyet dinh cua hoc sinh, khong phai
+    # loi doc: van cham (0 diem cau do) va chi ghi chu de giao vien biet.
     blank = [q for q in key if not reading.marks.get(q)]
     multi = [q for q in key if len(reading.marks.get(q, [])) > 1]
     if blank:
         notes.append("Câu bỏ trống: " + ", ".join(map(str, blank)))
     if multi:
         notes.append("Câu tô nhiều ô: " + ", ".join(map(str, multi)))
+    # Dung chi khi hoc sinh to DUNG MOT o va do la dap an: so sanh danh sach marks == [a] nen
+    # to 2 o (ke ca co o dung) deu tinh sai; cau bo trong marks = [] cung sai.
     result.correct = sum(reading.marks.get(q) == [a] for q, a in key.items())
+    # Chia cho so cau trong DAP AN (len(key)), khong phai 40: de 20 cau van ra thang 10.
     result.score = round(result.correct / len(key) * 10, 2)
     result.notes = notes
     return result
@@ -107,12 +120,14 @@ def grade_reading(filename, reading, key):
 
 def grade_batch(paths, key):
     results = []
-    for p in paths:
+    for p in paths:  # tung anh xu ly doc lap; mot anh hong khong duoc lam hong ca lo
         name = os.path.basename(p)
         try:
             results.append(grade_reading(name, read_sheet(p), key))
         except Exception as e:  # mot file loi khong duoc lam mat ket qua cua ca lop
             results.append(SheetResult(name, REVIEW, notes=[f"Lỗi khi xử lý ảnh: {e}"]))
+    # Sau khi doc het moi biet trung ma. Chi ghi chu, khong tu y doi trang thai: co the la 2 hoc sinh
+    # to trung ma, hoac mot hoc sinh nop 2 lan - giao vien quyet dinh.
     counts = Counter(r.student_id for r in results if r.student_id)
     for r in results:
         if counts.get(r.student_id, 0) > 1:
@@ -121,7 +136,7 @@ def grade_batch(paths, key):
 
 
 def write_csv(results, path):
-    """utf-8-sig de Excel hien dung tieng Viet."""
+    """utf-8-sig de Excel hien dung tieng Viet (BOM bao Excel doc UTF-8 thay vi code page may)."""
     with open(path, "w", encoding="utf-8-sig", newline="") as f:
         w = csv.writer(f)
         w.writerow(["ten_file", "ma_hoc_sinh", "so_cau_dung", "diem", "trang_thai", "ghi_chu"])
